@@ -1,25 +1,26 @@
 name: Build, Push WAS to NHN Cloud NCR, and Deploy with ArgoCD
-
 on:
   push:
     branches:
       - main
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
+    # 레포지토리 체크아웃
     - name: Checkout code
       uses: actions/checkout@v3
-
+      
+    # 도커 설치
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
-
+      
+    # NCR에 로그인
     - name: Login to NHN Cloud NCR
       run: |
         echo "${{ secrets.NHN_NCR_PASSWORD }}" | docker login -u "${{ secrets.NHN_NCR_USERNAME }}" --password-stdin 4e06a9e9-kr1-registry.container.nhncloud.com
 
+    # 이미지 태그 동적으로 생성. 20240911061127-b914cf9 과 같은 형식    
     - name: Generate Image Tag
       id: image-tag
       run: |
@@ -29,15 +30,16 @@ jobs:
         IMAGE_URI=4e06a9e9-kr1-registry.container.nhncloud.com/ncr-for-web/was:${IMAGE_TAG}
         echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
         echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-
+      
+    # 도커 이미지를 빌드 후 NCR에 푸시 
     - name: Build and Push Docker Image
       run: |
         docker build -f Dockerfile -t ${{ env.IMAGE_URI }} .
         docker push ${{ env.IMAGE_URI }}
-
+        
+    # Kustomize 설치
     - name: Setup Kustomize
       uses: imranismail/setup-kustomize@v1
-
     - name: Checkout kustomize repository
       uses: actions/checkout@v2
       with:
@@ -46,18 +48,21 @@ jobs:
         token: ${{ secrets.ACTION_TOKEN }}
         path: k8s-manifests
 
+    # GitHub Actions 이 푸시한걸로 남기기 위함   
     - name: Setup Git identity
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
       working-directory: ${{ github.workspace }}/k8s-manifests
-
+      
+    # Kustomize를 이용하여 kustomization.yaml 이미지 URI를 변경
     - name: Update kustomization.yaml with new image tag
       run: |
         cd ${{ github.workspace }}/k8s-manifests/base/was
         kustomize edit set image 4e06a9e9-kr1-registry.container.nhncloud.com/ncr-for-web/was:${{ env.IMAGE_TAG }}
         cat kustomization.yaml # For debugging purposes
 
+    # 변경된 kustomization.yaml 를 커밋 후 푸시
     - name: Commit and push the updated kustomization.yaml
       working-directory: ${{ github.workspace }}/k8s-manifests/base/was
       run: |
@@ -66,31 +71,20 @@ jobs:
         git add kustomization.yaml
         git commit -m "Update image tag to ${{ env.IMAGE_TAG }}"
         git push
-
+        
+    # ArgoCD CLI 설치 - argocd 명령어를 사용하기 위함
     - name: Install ArgoCD CLI
       run: |
         curl -sSL -o argocd-linux-amd64 https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
         chmod +x argocd-linux-amd64
         mv argocd-linux-amd64 /usr/local/bin/argocd
-
+        
+    # ArgoCD에 로그인하기
     - name: ArgoCD Login
       run: |
         argocd login ${{ secrets.ARGOCD_SERVER }} --username ${{ secrets.ARGOCD_USERNAME }} --password ${{ secrets.ARGOCD_PASSWORD }} --insecure
-
+        
+    # 자동 동기화
     - name: Sync Application with ArgoCD
       run: |
         argocd app sync was-cicd --prune
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.NHN_NCR_USERNAME }}
-        aws-secret-access-key: ${{ secrets.NHN_NCR_PASSWORD }}
-        aws-region: kr-standard  # NHN Cloud의 region
-
-    - name: Create and upload file to NHN Cloud Object Storage
-      run: |
-        FILENAME="upload-$(date +'%Y%m%d-%H%M%S').txt"
-        echo "This file was uploaded on $(date)" > $FILENAME
-        aws s3 cp $FILENAME s3://obj-test/$FILENAME --endpoint-url https://kr1-api-object-storage.nhncloudservice.com/v1/AUTH_66ac27acad5e42f3b92842a8a4e217b2
-        echo "File $FILENAME uploaded successfully"
