@@ -20,6 +20,14 @@ jobs:
       run: |
         echo "${{ secrets.NHN_NCR_PASSWORD }}" | docker login -u "${{ secrets.NHN_NCR_USERNAME }}" --password-stdin 4e06a9e9-kr1-registry.container.nhncloud.com
 
+    # AWS 플러그인으로 NHN 로그인 시도
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.NHN_NCR_USERNAME }}
+        aws-secret-access-key: ${{ secrets.NHN_NCR_PASSWORD }}
+        aws-region: kr-standard  # NHN Cloud의 region
+
     # 이미지 태그 동적으로 생성. 20240911061127-b914cf9 과 같은 형식    
     - name: Generate Image Tag
       id: image-tag
