@@ -1,0 +1,38 @@
+name: Build, Push WAS to NHN Cloud NCR, and Deploy with ArgoCD
+on:
+  push:
+    branches:
+      - main
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    # 레포지토리 체크아웃
+    - name: Checkout code
+      uses: actions/checkout@v3
+      
+    # 도커 설치
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      
+    # NCR에 로그인
+    - name: Login to NHN Cloud NCR
+      run: |
+        echo "${{ secrets.NHN_NCR_PASSWORD }}" | docker login -u "${{ secrets.NHN_NCR_USERNAME }}" --password-stdin 4e06a9e9-kr1-registry.container.nhncloud.com
+
+    # 이미지 태그 동적으로 생성. 20240911061127-b914cf9 과 같은 형식    
+    - name: Generate Image Tag
+      id: image-tag
+      run: |
+        TIMESTAMP=$(date +%Y%m%d%H%M%S)
+        SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+        IMAGE_TAG="${TIMESTAMP}-${SHORT_SHA}"
+        IMAGE_URI=4e06a9e9-kr1-registry.container.nhncloud.com/ncr-for-web/was:${IMAGE_TAG}
+        echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+        echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+      
+    # 도커 이미지를 빌드 후 NCR에 푸시 
+    - name: Build and Push Docker Image
+      run: |
+        docker build -f Dockerfile -t ${{ env.IMAGE_URI }} .
+        docker push ${{ env.IMAGE_URI }}
