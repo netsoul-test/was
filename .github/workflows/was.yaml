@@ -88,3 +88,25 @@ jobs:
     - name: Sync Application with ArgoCD
       run: |
         argocd app sync was-cicd --prune
+
+    #Object Storage에 임시 데이터 저장
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.NHN_NCR_USERNAME }}
+        aws-secret-access-key: ${{ secrets.NHN_NCR_PASSWORD }}
+        aws-region: kr-standard  # NHN Cloud의 region
+
+    - name: Create and upload file to NHN Cloud Object Storage
+      run: |
+        # 현재 날짜와 시간으로 파일 이름 생성
+        FILENAME="upload-$(date +'%Y%m%d-%H%M%S').txt"
+        
+        # 간단한 내용으로 txt 파일 생성
+        echo "This file was uploaded on $(date)" > $FILENAME
+        
+        # NHN Cloud Object Storage에 파일 업로드
+        aws s3 cp $FILENAME s3://obj-test/$FILENAME \
+          --endpoint-url https://kr1-api-object-storage.nhncloudservice.com/v1/AUTH_66ac27acad5e42f3b92842a8a4e217b2
+        
+        echo "File $FILENAME uploaded successfully"
