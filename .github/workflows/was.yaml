@@ -88,3 +88,4 @@ jobs:
     - name: Sync Application with ArgoCD
       run: |
         argocd app sync was-cicd --prune
+    #변경점테스트
