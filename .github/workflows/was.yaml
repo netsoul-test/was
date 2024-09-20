@@ -30,12 +30,18 @@ jobs:
 
           TOKEN=$(echo "$AUTH_RESPONSE" | grep -Fi X-Subject-Token | awk '{print $2}')
           STORAGE_URL=$(echo "$AUTH_RESPONSE" | grep -Fi "X-Storage-Url" | awk '{print $2}')
+
+          echo "Debugging AUTH_RESPONSE:"
+          echo "AUTH_RESPONSE=$AUTH_RESPONSE"
+          echo "TOKEN=$TOKEN"
+          echo "STORAGE_URL=$STORAGE_URL"
+          
           echo "TOKEN=$TOKEN" >> $GITHUB_ENV
           echo "STORAGE_URL=$STORAGE_URL" >> $GITHUB_ENV
 
       - name: Upload file to Object Storage
         run: |
-          curl -i -X PUT "${{ env.STORAGE_URL }}/obj-test/sample.txt" \
+          curl -i -X PUT "https://kr1-api-object-storage.nhncloudservice.com/v1/${{ env.STORAGE_URL }}/obj-test/sample.txt" \
           -H "X-Auth-Token: ${{ env.TOKEN }}" \
           -T sample.txt
           
