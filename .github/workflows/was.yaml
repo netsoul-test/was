@@ -41,7 +41,7 @@ jobs:
 
       - name: Upload file to Object Storage
         run: |
-          curl -i -X PUT "https://kr1-api-object-storage.nhncloudservice.com/v1/${{ env.STORAGE_URL }}/obj-test/sample.txt" \
+          curl -i -X PUT "https://kr1-api-object-storage.nhncloudservice.com/v1${{ env.STORAGE_URL }}/obj-test/sample.txt" \
           -H "X-Auth-Token: ${{ env.TOKEN }}" \
           -T sample.txt
           
