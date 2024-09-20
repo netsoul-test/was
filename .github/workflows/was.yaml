@@ -10,28 +10,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Generate a file
-        run: echo "Hello NHN Cloud!" > sample.txt
+      - name: Generate a file to upload
+        run: echo "Hello NHN Cloud Object Storage via API!" > sample.txt
 
-      - name: Install NHN Cloud SDK
+      - name: Generate Auth Token
+        id: get_token
         run: |
-          curl -LO https://sdk.nhncloud.com/cli/nhncloud-sdk-linux.tar.gz
-          tar -zxvf nhncloud-sdk-linux.tar.gz
-          sudo mv nhncloud-sdk /usr/local/bin/nhncloud-sdk
+          AUTH_RESPONSE=$(curl -i -X POST https://api-identity-infrastructure.nhncloudservice.com/v2.0/tokens \
+          -H "Content-Type: application/json" \
+          -d '{
+                "auth": {
+                    "tenantId": "66ac27acad5e42f3b92842a8a4e217b2",
+                    "passwordCredentials": {
+                        "username": "giun@netsoultech.com",
+                        "password": "1234"
+                    }
+                }
+            }')
 
-      - name: Configure NHN Cloud SDK
-        run: |
-          nhncloud-sdk configure set --project-name ${{ secrets.NHN_PROJECT_ID }} \
-                                    --access-key ${{ secrets.NHN_NCR_USERNAME }} \
-                                    --secret-key ${{ secrets.NHN_NCR_PASSWORD }}
+          TOKEN=$(echo "$AUTH_RESPONSE" | grep -Fi X-Subject-Token | awk '{print $2}')
+          STORAGE_URL=$(echo "$AUTH_RESPONSE" | grep -Fi "X-Storage-Url" | awk '{print $2}')
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "STORAGE_URL=$STORAGE_URL" >> $GITHUB_ENV
 
-      - name: Upload file to NHN Cloud Object Storage
+      - name: Upload file to Object Storage
         run: |
-          nhncloud-sdk object-storage upload-object --container my-container \
-                                                    --object-name sample.txt \
-                                                    --file sample.txt
+          curl -i -X PUT "${{ env.STORAGE_URL }}/obj-test/sample.txt" \
+          -H "X-Auth-Token: ${{ env.TOKEN }}" \
+          -T sample.txt
+          
   build-and-deploy:
     runs-on: ubuntu-latest
+    needs: upload-to-object-storage #업로드 후에 작업하도록 의존 설
     steps:
     # 레포지토리 체크아웃
     - name: Checkout code
